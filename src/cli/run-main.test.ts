@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isCommanderExitError,
   rewriteUpdateFlagArgv,
   shouldEnsureCliPath,
   shouldRegisterPrimarySubcommand,
@@ -7,6 +8,19 @@ import {
   shouldUseInteractiveCommandSelector,
   stripInteractiveSelectorArgs,
 } from "./run-main.js";
+
+describe("isCommanderExitError", () => {
+  it("detects commander exit errors", () => {
+    expect(isCommanderExitError({ code: "commander.helpDisplayed" })).toBe(true);
+    expect(isCommanderExitError({ code: "commander.unknownOption" })).toBe(true);
+  });
+
+  it("ignores non-commander errors", () => {
+    expect(isCommanderExitError(new Error("boom"))).toBe(false);
+    expect(isCommanderExitError({ code: "custom.error" })).toBe(false);
+    expect(isCommanderExitError(null)).toBe(false);
+  });
+});
 
 describe("rewriteUpdateFlagArgv", () => {
   it("leaves argv unchanged when --update is absent", () => {

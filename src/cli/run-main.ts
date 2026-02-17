@@ -169,6 +169,14 @@ export function stripInteractiveSelectorArgs(argv: string[]): string[] {
   return [...argv.slice(0, 2), ...next];
 }
 
+export function isCommanderExitError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" && code.startsWith("commander.");
+}
+
 export async function runCli(argv: string[] = process.argv) {
   const normalizedArgv = normalizeWindowsArgv(argv);
   loadDotEnv({ quiet: true });
@@ -240,21 +248,34 @@ export async function runCli(argv: string[] = process.argv) {
   }
 
   if (useInteractiveSelector) {
+    const interactiveBaseArgv = parseArgv;
     const { runInteractiveCommandSelector } = await import("./program/command-selector.js");
-    const selectedPath = await runInteractiveCommandSelector(program);
-    if (!selectedPath || selectedPath.length === 0) {
-      // Exit silently when leaving interactive mode.
-      return;
-    }
-
-    parseArgv = [...parseArgv, ...selectedPath];
     const { runCommandQuestionnaire } = await import("./program/command-questionnaire.js");
-    const promptArgs = await runCommandQuestionnaire({ program, commandPath: selectedPath });
-    if (promptArgs === null) {
-      return;
-    }
-    if (promptArgs.length > 0) {
-      parseArgv = [...parseArgv, ...promptArgs];
+
+    // In interactive mode we keep the process alive and return to the main menu
+    // after each command run (or handled command-parse/help exit).
+    program.exitOverride();
+    while (true) {
+      const selectedPath = await runInteractiveCommandSelector(program);
+      if (!selectedPath || selectedPath.length === 0) {
+        // Exit silently when leaving interactive mode.
+        return;
+      }
+
+      const promptArgs = await runCommandQuestionnaire({ program, commandPath: selectedPath });
+      if (promptArgs === null) {
+        // User cancelled parameter entry: return to the main picker.
+        continue;
+      }
+
+      const commandArgv = [...interactiveBaseArgv, ...selectedPath, ...promptArgs];
+      try {
+        await program.parseAsync(commandArgv);
+      } catch (error) {
+        if (!isCommanderExitError(error)) {
+          console.error("[openclaw] Command failed:", formatUncaughtError(error));
+        }
+      }
     }
   }
 
