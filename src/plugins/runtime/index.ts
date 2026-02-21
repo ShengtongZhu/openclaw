@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import { resolveEffectiveMessagesConfig, resolveHumanDelayConfig } from "../../agents/identity.js";
+import { resolveApiKeyForProvider, resolveProviderInfo } from "../../agents/model-auth.js";
 import { createMemoryGetTool, createMemorySearchTool } from "../../agents/tools/memory-tool.js";
 import { handleSlackAction } from "../../agents/tools/slack-actions.js";
 import {
@@ -247,6 +248,7 @@ export function createPluginRuntime(): PluginRuntime {
     channel: createRuntimeChannel(),
     logging: createRuntimeLogging(),
     state: { resolveStateDir },
+    models: createRuntimeModels(),
   };
 }
 
@@ -281,6 +283,13 @@ function createRuntimeTools(): PluginRuntime["tools"] {
     createMemoryGetTool,
     createMemorySearchTool,
     registerMemoryCli,
+  };
+}
+
+function createRuntimeModels(): PluginRuntime["models"] {
+  return {
+    resolveApiKeyForProvider,
+    resolveProviderInfo,
   };
 }
 

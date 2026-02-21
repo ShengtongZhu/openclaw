@@ -1,5 +1,8 @@
 import type { LogLevel } from "../../logging/levels.js";
 
+type ResolveApiKeyForProvider =
+  typeof import("../../agents/model-auth.js").resolveApiKeyForProvider;
+type ResolveProviderInfo = typeof import("../../agents/model-auth.js").resolveProviderInfo;
 type ShouldLogVerbose = typeof import("../../globals.js").shouldLogVerbose;
 type DispatchReplyWithBufferedBlockDispatcher =
   typeof import("../../auto-reply/reply/provider-dispatcher.js").dispatchReplyWithBufferedBlockDispatcher;
@@ -360,5 +363,9 @@ export type PluginRuntime = {
   };
   state: {
     resolveStateDir: ResolveStateDir;
+  };
+  models: {
+    resolveApiKeyForProvider: ResolveApiKeyForProvider;
+    resolveProviderInfo: ResolveProviderInfo;
   };
 };

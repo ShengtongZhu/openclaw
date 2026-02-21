@@ -1,8 +1,9 @@
+import fs from "node:fs/promises";
 import path from "node:path";
-import { type Api, getEnvApiKey, type Model } from "@mariozechner/pi-ai";
+import { type Api, getEnvApiKey, getModels, type Model } from "@mariozechner/pi-ai";
 import { formatCliCommand } from "../cli/command-format.js";
 import type { OpenClawConfig } from "../config/config.js";
-import type { ModelProviderAuthMode, ModelProviderConfig } from "../config/types.js";
+import type { ModelApi, ModelProviderAuthMode, ModelProviderConfig } from "../config/types.js";
 import { getShellEnvAppliedKeys } from "../infra/shell-env.js";
 import {
   normalizeOptionalSecretInput,
@@ -403,4 +404,117 @@ export function requireApiKey(auth: ResolvedProviderAuth, provider: string): str
     return key;
   }
   throw new Error(`No API key resolved for provider "${provider}" (auth mode: ${auth.mode}).`);
+}
+
+// ---------------------------------------------------------------------------
+// Provider info resolution — exposed to plugins via runtime.models
+// ---------------------------------------------------------------------------
+
+/**
+ * Lightweight provider info returned to plugins.
+ * Contains the connection details needed to call a provider's API —
+ * baseUrl, API protocol type, and optional headers.
+ */
+export type ResolvedProviderInfo = {
+  baseUrl: string;
+  api: ModelApi;
+  headers?: Record<string, string>;
+};
+
+/**
+ * Resolve a provider's connection info (baseUrl, api type, headers).
+ *
+ * Resolution order:
+ * 1. Explicit config: `cfg.models.providers[provider]`
+ * 2. models.json (merged/implicit providers from startup)
+ * 3. pi-ai built-in model database (covers providers like kimi-coding,
+ *    anthropic, openai, etc. that ship with the library)
+ *
+ * This gives plugins access to ALL configured providers without
+ * hardcoding a list of well-known providers.
+ */
+export async function resolveProviderInfo(params: {
+  provider: string;
+  cfg?: OpenClawConfig;
+  agentDir?: string;
+}): Promise<ResolvedProviderInfo | undefined> {
+  const { provider, cfg } = params;
+
+  // 1. Check explicit config first
+  const explicit = resolveProviderConfig(cfg, provider);
+  if (explicit?.baseUrl) {
+    return {
+      baseUrl: explicit.baseUrl,
+      api: explicit.api ?? "openai-completions",
+      headers: explicit.headers,
+    };
+  }
+
+  // 2. Read from models.json — contains merged/implicit providers
+  const agentDir = params.agentDir ?? resolveAgentDirForModelsJson();
+  if (agentDir) {
+    try {
+      const modelsJsonPath = path.join(agentDir, "models.json");
+      const raw = await fs.readFile(modelsJsonPath, "utf8");
+      const parsed = JSON.parse(raw) as {
+        providers?: Record<string, ModelProviderConfig>;
+      };
+
+      const providers = parsed?.providers ?? {};
+      const normalized = normalizeProviderId(provider);
+
+      // Direct match
+      const direct = providers[provider] ?? providers[normalized];
+      if (direct?.baseUrl) {
+        return {
+          baseUrl: direct.baseUrl,
+          api: direct.api ?? "openai-completions",
+          headers: direct.headers,
+        };
+      }
+
+      // Fuzzy match by normalized id
+      for (const [key, value] of Object.entries(providers)) {
+        if (normalizeProviderId(key) === normalized && value?.baseUrl) {
+          return {
+            baseUrl: value.baseUrl,
+            api: value.api ?? "openai-completions",
+            headers: value.headers,
+          };
+        }
+      }
+    } catch {
+      // models.json doesn't exist or isn't valid — not fatal
+    }
+  }
+
+  // 3. Check pi-ai built-in model database (covers providers like kimi-coding,
+  //    anthropic, openai, etc. that ship with the library)
+  try {
+    const builtInModels = getModels(provider as never);
+    if (builtInModels.length > 0) {
+      const first = builtInModels[0];
+      return {
+        baseUrl: first.baseUrl,
+        api: first.api as ModelApi,
+        headers: first.headers,
+      };
+    }
+  } catch {
+    // provider not known to pi-ai — not fatal
+  }
+
+  return undefined;
+}
+
+/** Best-effort resolution of the agent dir for reading models.json. */
+function resolveAgentDirForModelsJson(): string | undefined {
+  try {
+    // Dynamically import to avoid circular dependencies
+    const envDir =
+      process.env.OPENCLAW_AGENT_DIR?.trim() || process.env.PI_CODING_AGENT_DIR?.trim();
+    return envDir || undefined;
+  } catch {
+    return undefined;
+  }
 }
