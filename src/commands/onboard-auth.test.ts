@@ -11,6 +11,8 @@ import {
 import {
   applyAuthProfileConfig,
   applyLitellmProviderConfig,
+  applyCohereConfig,
+  applyCohereProviderConfig,
   applyMistralConfig,
   applyMistralProviderConfig,
   applyMinimaxApiConfig,
@@ -28,6 +30,7 @@ import {
   applyZaiConfig,
   applyZaiProviderConfig,
   OPENROUTER_DEFAULT_MODEL_REF,
+  COHERE_DEFAULT_MODEL_REF,
   MISTRAL_DEFAULT_MODEL_REF,
   SYNTHETIC_DEFAULT_MODEL_ID,
   SYNTHETIC_DEFAULT_MODEL_REF,
@@ -590,9 +593,53 @@ describe("applyMistralProviderConfig", () => {
   });
 });
 
+describe("applyCohereConfig", () => {
+  it("adds Cohere provider with correct settings", () => {
+    const cfg = applyCohereConfig({});
+    expect(cfg.models?.providers?.cohere).toMatchObject({
+      baseUrl: "https://api.cohere.ai/compatibility/v1",
+      api: "openai-completions",
+    });
+    expect(resolveAgentModelPrimaryValue(cfg.agents?.defaults?.model)).toBe(
+      COHERE_DEFAULT_MODEL_REF,
+    );
+  });
+});
+
+describe("applyCohereProviderConfig", () => {
+  it("merges Cohere models and keeps existing provider overrides", () => {
+    const cfg = applyCohereProviderConfig(
+      createLegacyProviderConfig({
+        providerId: "cohere",
+        api: "anthropic-messages",
+        modelId: "custom-model",
+        modelName: "Custom",
+      }),
+    );
+
+    expect(cfg.models?.providers?.cohere?.baseUrl).toBe("https://api.cohere.ai/compatibility/v1");
+    expect(cfg.models?.providers?.cohere?.api).toBe("openai-completions");
+    expect(cfg.models?.providers?.cohere?.apiKey).toBe("old-key");
+    expect(cfg.models?.providers?.cohere?.models.map((m) => m.id)).toEqual([
+      "custom-model",
+      "command-a-03-2025",
+    ]);
+    const cohereDefault = cfg.models?.providers?.cohere?.models.find(
+      (model) => model.id === "command-a-03-2025",
+    );
+    expect(cohereDefault?.contextWindow).toBe(256000);
+    expect(cohereDefault?.maxTokens).toBe(8192);
+  });
+});
+
 describe("fallback preservation helpers", () => {
   it("preserves existing model fallbacks", () => {
-    const fallbackCases = [applyMinimaxApiConfig, applyXaiConfig, applyMistralConfig] as const;
+    const fallbackCases = [
+      applyMinimaxApiConfig,
+      applyXaiConfig,
+      applyMistralConfig,
+      applyCohereConfig,
+    ] as const;
     for (const applyConfig of fallbackCases) {
       const cfg = applyConfig(createConfigWithFallbacks());
       expectFallbacksPreserved(cfg);
@@ -617,6 +664,11 @@ describe("provider alias defaults", () => {
         applyConfig: () => applyMistralProviderConfig({}),
         modelRef: MISTRAL_DEFAULT_MODEL_REF,
         alias: "Mistral",
+      },
+      {
+        applyConfig: () => applyCohereProviderConfig({}),
+        modelRef: COHERE_DEFAULT_MODEL_REF,
+        alias: "Cohere",
       },
     ] as const;
     for (const testCase of aliasCases) {
