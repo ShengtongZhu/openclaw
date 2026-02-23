@@ -7,6 +7,7 @@ import {
   resolveMaintenanceConfig,
   updateSessionStore,
   type SessionEntry,
+  type SessionMaintenanceApplyReport,
 } from "../config/sessions.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { isRich, theme } from "../terminal/theme.js";
@@ -299,6 +300,9 @@ export async function sessionsCleanupCommand(opts: SessionsCleanupOptions, runti
 
   const appliedSummaries: SessionCleanupSummary[] = [];
   for (const target of targets) {
+    const appliedReportRef: { current: SessionMaintenanceApplyReport | null } = {
+      current: null,
+    };
     await updateSessionStore(
       target.storePath,
       async () => {
@@ -309,27 +313,53 @@ export async function sessionsCleanupCommand(opts: SessionsCleanupOptions, runti
         maintenanceOverride: {
           mode,
         },
+        onMaintenanceApplied: (report) => {
+          appliedReportRef.current = report;
+        },
       },
     );
     const afterStore = loadSessionStore(target.storePath, { skipCache: true });
     const preview = previewResults.find((result) => result.summary.storePath === target.storePath);
-    const summary: SessionCleanupSummary = {
-      ...(preview?.summary ?? {
-        agentId: target.agentId,
-        storePath: target.storePath,
-        mode,
-        dryRun: false,
-        beforeCount: 0,
-        afterCount: 0,
-        pruned: 0,
-        capped: 0,
-        diskBudget: null,
-        wouldMutate: false,
-      }),
-      dryRun: false,
-      applied: true,
-      appliedCount: Object.keys(afterStore).length,
-    };
+    const appliedReport = appliedReportRef.current;
+    const summary: SessionCleanupSummary =
+      appliedReport === null
+        ? {
+            ...(preview?.summary ?? {
+              agentId: target.agentId,
+              storePath: target.storePath,
+              mode,
+              dryRun: false,
+              beforeCount: 0,
+              afterCount: 0,
+              pruned: 0,
+              capped: 0,
+              diskBudget: null,
+              wouldMutate: false,
+            }),
+            dryRun: false,
+            applied: true,
+            appliedCount: Object.keys(afterStore).length,
+          }
+        : {
+            agentId: target.agentId,
+            storePath: target.storePath,
+            mode: appliedReport.mode,
+            dryRun: false,
+            beforeCount: appliedReport.beforeCount,
+            afterCount: appliedReport.afterCount,
+            pruned: appliedReport.pruned,
+            capped: appliedReport.capped,
+            diskBudget: appliedReport.diskBudget,
+            wouldMutate:
+              appliedReport.pruned > 0 ||
+              appliedReport.capped > 0 ||
+              Boolean(
+                (appliedReport.diskBudget?.removedEntries ?? 0) > 0 ||
+                (appliedReport.diskBudget?.removedFiles ?? 0) > 0,
+              ),
+            applied: true,
+            appliedCount: Object.keys(afterStore).length,
+          };
     appliedSummaries.push(summary);
   }
 

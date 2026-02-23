@@ -20,7 +20,7 @@ import {
 import { getFileMtimeMs, isCacheEnabled, resolveCacheTtlMs } from "../cache-utils.js";
 import { loadConfig } from "../config.js";
 import type { SessionMaintenanceConfig, SessionMaintenanceMode } from "../types.base.js";
-import { enforceSessionDiskBudget } from "./disk-budget.js";
+import { enforceSessionDiskBudget, type SessionDiskBudgetSweepResult } from "./disk-budget.js";
 import { deriveSessionMetaPatch } from "./metadata.js";
 import { mergeSessionEntry, type SessionEntry } from "./types.js";
 
@@ -310,6 +310,15 @@ export type SessionMaintenanceWarning = {
   maxEntries: number;
   wouldPrune: boolean;
   wouldCap: boolean;
+};
+
+export type SessionMaintenanceApplyReport = {
+  mode: SessionMaintenanceMode;
+  beforeCount: number;
+  afterCount: number;
+  pruned: number;
+  capped: number;
+  diskBudget: SessionDiskBudgetSweepResult | null;
 };
 
 type ResolvedSessionMaintenanceConfig = {
@@ -620,6 +629,8 @@ type SaveSessionStoreOptions = {
   activeSessionKey?: string;
   /** Optional callback for warn-only maintenance. */
   onWarn?: (warning: SessionMaintenanceWarning) => void | Promise<void>;
+  /** Optional callback with maintenance stats after a save. */
+  onMaintenanceApplied?: (report: SessionMaintenanceApplyReport) => void | Promise<void>;
   /** Optional overrides used by maintenance commands. */
   maintenanceOverride?: Partial<ResolvedSessionMaintenanceConfig>;
 };
@@ -638,6 +649,7 @@ async function saveSessionStoreUnlocked(
     // Resolve maintenance config once (avoids repeated loadConfig() calls).
     const maintenance = { ...resolveMaintenanceConfig(), ...opts?.maintenanceOverride };
     const shouldWarnOnly = maintenance.mode === "warn";
+    const beforeCount = Object.keys(store).length;
 
     if (shouldWarnOnly) {
       const activeSessionKey = opts?.activeSessionKey?.trim();
@@ -659,7 +671,7 @@ async function saveSessionStoreUnlocked(
           await opts?.onWarn?.(warning);
         }
       }
-      await enforceSessionDiskBudget({
+      const diskBudget = await enforceSessionDiskBudget({
         store,
         storePath,
         activeSessionKey: opts?.activeSessionKey,
@@ -667,17 +679,25 @@ async function saveSessionStoreUnlocked(
         warnOnly: true,
         log,
       });
+      await opts?.onMaintenanceApplied?.({
+        mode: maintenance.mode,
+        beforeCount,
+        afterCount: Object.keys(store).length,
+        pruned: 0,
+        capped: 0,
+        diskBudget,
+      });
     } else {
       // Prune stale entries and cap total count before serializing.
       const removedSessionFiles = new Map<string, string | undefined>();
-      pruneStaleEntries(store, maintenance.pruneAfterMs, {
+      const pruned = pruneStaleEntries(store, maintenance.pruneAfterMs, {
         onPruned: ({ entry }) => {
           if (!removedSessionFiles.has(entry.sessionId) || entry.sessionFile) {
             removedSessionFiles.set(entry.sessionId, entry.sessionFile);
           }
         },
       });
-      capEntryCount(store, maintenance.maxEntries, {
+      const capped = capEntryCount(store, maintenance.maxEntries, {
         onCapped: ({ entry }) => {
           if (!removedSessionFiles.has(entry.sessionId) || entry.sessionFile) {
             removedSessionFiles.set(entry.sessionId, entry.sessionFile);
@@ -725,13 +745,21 @@ async function saveSessionStoreUnlocked(
       // Rotate the on-disk file if it exceeds the size threshold.
       await rotateSessionFile(storePath, maintenance.rotateBytes);
 
-      await enforceSessionDiskBudget({
+      const diskBudget = await enforceSessionDiskBudget({
         store,
         storePath,
         activeSessionKey: opts?.activeSessionKey,
         maintenance,
         warnOnly: false,
         log,
+      });
+      await opts?.onMaintenanceApplied?.({
+        mode: maintenance.mode,
+        beforeCount,
+        afterCount: Object.keys(store).length,
+        pruned,
+        capped,
+        diskBudget,
       });
     }
   }

@@ -97,6 +97,41 @@ describe("sessionsCleanupCommand", () => {
       .mockReturnValueOnce({
         fresh: { sessionId: "fresh", updatedAt: 2 },
       });
+    mocks.updateSessionStore.mockImplementation(
+      async (
+        _storePath: string,
+        mutator: (store: Record<string, SessionEntry>) => Promise<void> | void,
+        opts?: {
+          onMaintenanceApplied?: (report: {
+            mode: "warn" | "enforce";
+            beforeCount: number;
+            afterCount: number;
+            pruned: number;
+            capped: number;
+            diskBudget: Record<string, unknown> | null;
+          }) => Promise<void> | void;
+        },
+      ) => {
+        await mutator({});
+        await opts?.onMaintenanceApplied?.({
+          mode: "enforce",
+          beforeCount: 3,
+          afterCount: 1,
+          pruned: 0,
+          capped: 2,
+          diskBudget: {
+            totalBytesBefore: 1200,
+            totalBytesAfter: 800,
+            removedFiles: 0,
+            removedEntries: 0,
+            freedBytes: 400,
+            maxBytes: 1000,
+            highWaterBytes: 800,
+            overBudget: true,
+          },
+        });
+      },
+    );
 
     const { runtime, logs } = makeRuntime();
     await sessionsCleanupCommand(
@@ -112,12 +147,14 @@ describe("sessionsCleanupCommand", () => {
     const payload = JSON.parse(logs[0] ?? "{}") as Record<string, unknown>;
     expect(payload.applied).toBe(true);
     expect(payload.mode).toBe("enforce");
-    expect(payload.beforeCount).toBe(2);
+    expect(payload.beforeCount).toBe(3);
     expect(payload.appliedCount).toBe(1);
+    expect(payload.pruned).toBe(0);
+    expect(payload.capped).toBe(2);
     expect(payload.diskBudget).toEqual(
       expect.objectContaining({
-        removedFiles: 1,
-        removedEntries: 1,
+        removedFiles: 0,
+        removedEntries: 0,
       }),
     );
     expect(mocks.updateSessionStore).toHaveBeenCalledWith(
@@ -126,6 +163,7 @@ describe("sessionsCleanupCommand", () => {
       expect.objectContaining({
         activeSessionKey: "agent:main:main",
         maintenanceOverride: { mode: "enforce" },
+        onMaintenanceApplied: expect.any(Function),
       }),
     );
   });

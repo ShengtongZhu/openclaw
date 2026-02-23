@@ -207,6 +207,7 @@ export async function noteStateIntegrity(
   const displayStateDir = shortenHomePath(stateDir);
   const displayOauthDir = shortenHomePath(oauthDir);
   const displaySessionsDir = shortenHomePath(sessionsDir);
+  const displayStorePath = shortenHomePath(storePath);
   const displayStoreDir = shortenHomePath(storeDir);
   const displayConfigPath = configPath ? shortenHomePath(configPath) : undefined;
   const requireOAuthDir = shouldRequireOAuthDir(cfg, env);
@@ -410,7 +411,11 @@ export async function noteStateIntegrity(
     });
     if (missing.length > 0) {
       warnings.push(
-        `- ${missing.length}/${recent.length} recent sessions are missing transcripts. Check for deleted session files or split state dirs.`,
+        [
+          `- ${missing.length}/${recent.length} recent sessions are missing transcripts.`,
+          `  Verify sessions in store: openclaw sessions --store "${displayStorePath}"`,
+          `  Preview cleanup impact: openclaw sessions cleanup --store "${displayStorePath}" --dry-run`,
+        ].join("\n"),
       );
     }
 
