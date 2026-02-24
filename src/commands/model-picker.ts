@@ -552,6 +552,9 @@ export function applyModelAllowlist(cfg: OpenClawConfig, models: string[]): Open
 export function pruneKilocodeProviderModelsToAllowlist(
   cfg: OpenClawConfig,
   selectedModels: string[],
+  opts?: {
+    pruneWhenNoKilocodeSelection?: boolean;
+  },
 ): OpenClawConfig {
   const normalized = normalizeModelKeys(selectedModels);
   if (normalized.length === 0) {
@@ -564,8 +567,8 @@ export function pruneKilocodeProviderModelsToAllowlist(
 
   const selectedByProvider = selectedModelIdsByProvider(normalized);
   // Keep this scoped to Kilo Gateway: do not mutate other providers here.
-  const selectedKilocodeIds = selectedByProvider.get("kilocode");
-  if (!selectedKilocodeIds || selectedKilocodeIds.size === 0) {
+  const selectedKilocodeIds = selectedByProvider.get("kilocode") ?? new Set<string>();
+  if (selectedKilocodeIds.size === 0 && !(opts?.pruneWhenNoKilocodeSelection ?? false)) {
     return cfg;
   }
   let mutated = false;

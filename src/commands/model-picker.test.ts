@@ -318,4 +318,27 @@ describe("pruneKilocodeProviderModelsToAllowlist", () => {
       "MiniMax-M2.5",
     ]);
   });
+
+  it("can prune Kilo provider models to empty when configured", () => {
+    const config = {
+      models: {
+        providers: {
+          kilocode: {
+            baseUrl: "https://api.kilo.ai/api/gateway/",
+            api: "openai-completions",
+            models: [
+              makeProviderModel("anthropic/claude-opus-4.6", "Claude Opus 4.6"),
+              makeProviderModel("minimax/minimax-m2.5:free", "MiniMax M2.5 (Free)"),
+            ],
+          },
+        },
+      },
+    } as OpenClawConfig;
+
+    const next = pruneKilocodeProviderModelsToAllowlist(config, ["openai/gpt-5.2"], {
+      pruneWhenNoKilocodeSelection: true,
+    });
+
+    expect(next.models?.providers?.kilocode?.models).toEqual([]);
+  });
 });

@@ -128,4 +128,64 @@ describe("promptAuthConfig", () => {
       "MiniMax-M2.1",
     ]);
   });
+
+  it("prunes Kilo provider models to empty when Kilo auth selection has no Kilo models", async () => {
+    mocks.promptAuthChoiceGrouped.mockResolvedValue("kilocode-api-key");
+    mocks.applyAuthChoice.mockResolvedValue({
+      config: {
+        agents: {
+          defaults: {
+            model: { primary: "kilocode/anthropic/claude-opus-4.6" },
+          },
+        },
+        models: {
+          providers: {
+            kilocode: {
+              baseUrl: "https://api.kilo.ai/api/gateway/",
+              api: "openai-completions",
+              models: [
+                { id: "anthropic/claude-opus-4.6", name: "Claude Opus 4.6" },
+                { id: "minimax/minimax-m2.5:free", name: "MiniMax M2.5 (Free)" },
+              ],
+            },
+          },
+        },
+      },
+    });
+    mocks.promptModelAllowlist.mockResolvedValue({
+      models: ["openai/gpt-5.2"],
+    });
+
+    const result = await promptAuthConfig({}, makeRuntime(), noopPrompter);
+    expect(result.models?.providers?.kilocode?.models).toEqual([]);
+  });
+
+  it("does not prune Kilo provider models outside Kilo auth flow", async () => {
+    mocks.promptAuthChoiceGrouped.mockResolvedValue("token");
+    mocks.applyAuthChoice.mockResolvedValue({
+      config: {
+        models: {
+          providers: {
+            kilocode: {
+              baseUrl: "https://api.kilo.ai/api/gateway/",
+              api: "openai-completions",
+              models: [
+                { id: "anthropic/claude-opus-4.6", name: "Claude Opus 4.6" },
+                { id: "minimax/minimax-m2.5:free", name: "MiniMax M2.5 (Free)" },
+              ],
+            },
+          },
+        },
+      },
+    });
+    mocks.promptModelAllowlist.mockResolvedValue({
+      models: ["openai/gpt-5.2"],
+    });
+
+    const result = await promptAuthConfig({}, makeRuntime(), noopPrompter);
+    expect(result.models?.providers?.kilocode?.models?.map((model) => model.id)).toEqual([
+      "anthropic/claude-opus-4.6",
+      "minimax/minimax-m2.5:free",
+    ]);
+  });
 });

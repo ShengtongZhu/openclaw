@@ -127,7 +127,11 @@ export async function promptAuthConfig(
     });
     if (allowlistSelection.models) {
       next = applyModelAllowlist(next, allowlistSelection.models);
-      next = pruneKilocodeProviderModelsToAllowlist(next, allowlistSelection.models);
+      if (authChoice === "kilocode-api-key") {
+        next = pruneKilocodeProviderModelsToAllowlist(next, allowlistSelection.models, {
+          pruneWhenNoKilocodeSelection: true,
+        });
+      }
       next = applyModelFallbacksFromSelection(next, allowlistSelection.models);
     }
   }
