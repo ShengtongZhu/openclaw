@@ -4,6 +4,7 @@ import {
   DEFAULT_ACCOUNT_ID,
   deleteAccountFromConfigSection,
   formatPairingApproveHint,
+  migrateBaseNameToDefaultAccount,
   normalizeAccountId,
   PAIRING_APPROVED_MESSAGE,
   resolveAllowlistProviderRuntimeGroupPolicy,
@@ -63,6 +64,7 @@ function normalizeMatrixMessagingTarget(raw: string): string | undefined {
 
 function buildMatrixConfigUpdate(
   cfg: CoreConfig,
+  accountId: string,
   input: {
     homeserver?: string;
     userId?: string;
@@ -74,6 +76,34 @@ function buildMatrixConfigUpdate(
   },
 ): CoreConfig {
   const existing = cfg.channels?.["matrix-js"] ?? {};
+  if (accountId !== DEFAULT_ACCOUNT_ID) {
+    return {
+      ...cfg,
+      channels: {
+        ...cfg.channels,
+        "matrix-js": {
+          ...existing,
+          enabled: true,
+          accounts: {
+            ...existing.accounts,
+            [accountId]: {
+              ...existing.accounts?.[accountId],
+              enabled: true,
+              ...(input.homeserver ? { homeserver: input.homeserver } : {}),
+              ...(input.userId ? { userId: input.userId } : {}),
+              ...(input.accessToken ? { accessToken: input.accessToken } : {}),
+              ...(input.password ? { password: input.password } : {}),
+              ...(typeof input.register === "boolean" ? { register: input.register } : {}),
+              ...(input.deviceName ? { deviceName: input.deviceName } : {}),
+              ...(typeof input.initialSyncLimit === "number"
+                ? { initialSyncLimit: input.initialSyncLimit }
+                : {}),
+            },
+          },
+        },
+      },
+    };
+  }
   return {
     ...cfg,
     channels: {
@@ -320,7 +350,10 @@ export const matrixPlugin: ChannelPlugin<ResolvedMatrixAccount> = {
         accountId,
         name,
       }),
-    validateInput: ({ input }) => {
+    validateInput: ({ accountId, input }) => {
+      if (input.useEnv && accountId !== DEFAULT_ACCOUNT_ID) {
+        return "MATRIX_* env vars can only be used for the default account.";
+      }
       if (input.useEnv) {
         return null;
       }
@@ -343,26 +376,33 @@ export const matrixPlugin: ChannelPlugin<ResolvedMatrixAccount> = {
       }
       return null;
     },
-    applyAccountConfig: ({ cfg, input }) => {
+    applyAccountConfig: ({ cfg, accountId, input }) => {
       const namedConfig = applyAccountNameToChannelSection({
         cfg: cfg as CoreConfig,
         channelKey: "matrix-js",
-        accountId: DEFAULT_ACCOUNT_ID,
+        accountId,
         name: input.name,
       });
+      const next =
+        accountId !== DEFAULT_ACCOUNT_ID
+          ? migrateBaseNameToDefaultAccount({
+              cfg: namedConfig,
+              channelKey: "matrix-js",
+            })
+          : namedConfig;
       if (input.useEnv) {
         return {
-          ...namedConfig,
+          ...next,
           channels: {
-            ...namedConfig.channels,
+            ...next.channels,
             "matrix-js": {
-              ...namedConfig.channels?.["matrix-js"],
+              ...next.channels?.["matrix-js"],
               enabled: true,
             },
           },
         } as CoreConfig;
       }
-      return buildMatrixConfigUpdate(namedConfig as CoreConfig, {
+      return buildMatrixConfigUpdate(next as CoreConfig, accountId, {
         homeserver: input.homeserver?.trim(),
         userId: input.userId?.trim(),
         accessToken: input.accessToken?.trim(),

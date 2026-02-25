@@ -132,4 +132,42 @@ describe("matrix directory", () => {
       }),
     ).toBe(false);
   });
+
+  it("writes matrix-js non-default account credentials under channels.matrix-js.accounts", () => {
+    const cfg = {
+      channels: {
+        "matrix-js": {
+          homeserver: "https://default.example.org",
+          accessToken: "default-token",
+        },
+      },
+    } as unknown as CoreConfig;
+
+    const updated = matrixPlugin.setup!.applyAccountConfig({
+      cfg,
+      accountId: "ops",
+      input: {
+        homeserver: "https://matrix.example.org",
+        userId: "@ops:example.org",
+        accessToken: "ops-token",
+      },
+    }) as CoreConfig;
+
+    expect(updated.channels?.["matrix-js"]?.accessToken).toBe("default-token");
+    expect(updated.channels?.["matrix-js"]?.accounts?.ops).toMatchObject({
+      enabled: true,
+      homeserver: "https://matrix.example.org",
+      userId: "@ops:example.org",
+      accessToken: "ops-token",
+    });
+  });
+
+  it("rejects useEnv for non-default matrix-js accounts", () => {
+    const error = matrixPlugin.setup!.validateInput?.({
+      cfg: {} as CoreConfig,
+      accountId: "ops",
+      input: { useEnv: true },
+    });
+    expect(error).toBe("MATRIX_* env vars can only be used for the default account.");
+  });
 });
