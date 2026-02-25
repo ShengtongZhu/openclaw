@@ -123,11 +123,11 @@ function describeBackupIssue(backup: MatrixCliBackupStatus): string | null {
   if (!backup.serverVersion) {
     return "no room-key backup exists on the homeserver";
   }
-  if (backup.matchesDecryptionKey === false) {
-    return "backup key mismatch (this device does not have the matching backup decryption key)";
-  }
   if (backup.decryptionKeyCached === false) {
     return "backup decryption key is not loaded on this device";
+  }
+  if (backup.matchesDecryptionKey === false) {
+    return "backup key mismatch (this device does not have the matching backup decryption key)";
   }
   if (backup.trusted === false) {
     return "backup signature chain is not trusted by this device";

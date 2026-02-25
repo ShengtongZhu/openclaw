@@ -136,6 +136,7 @@ export class MatrixClient {
   private readonly recoveryKeyStore: MatrixRecoveryKeyStore;
   private readonly cryptoBootstrapper: MatrixCryptoBootstrapper<MatrixRawEvent>;
   private readonly autoBootstrapCrypto: boolean;
+  private stopPersistPromise: Promise<void> | null = null;
 
   readonly dms = {
     update: async (): Promise<void> => {
@@ -290,12 +291,17 @@ export class MatrixClient {
     }
     this.decryptBridge.stop();
     // Final persist on shutdown
-    persistIdbToDisk({
+    this.stopPersistPromise = persistIdbToDisk({
       snapshotPath: this.idbSnapshotPath,
       databasePrefix: this.cryptoDatabasePrefix,
     }).catch(noop);
     this.client.stopClient();
     this.started = false;
+  }
+
+  async stopAndPersist(): Promise<void> {
+    this.stop();
+    await this.stopPersistPromise;
   }
 
   private async bootstrapCryptoIfNeeded(): Promise<void> {

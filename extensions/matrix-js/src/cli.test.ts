@@ -277,7 +277,7 @@ describe("matrix-js CLI verification commands", () => {
     await program.parseAsync(["matrix-js", "verify", "status"], { from: "user" });
 
     expect(console.log).toHaveBeenCalledWith(
-      "Backup issue: backup key mismatch (this device does not have the matching backup decryption key)",
+      "Backup issue: backup decryption key is not loaded on this device",
     );
   });
 

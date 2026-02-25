@@ -12,6 +12,16 @@ function requireCrypto(
   return client.crypto;
 }
 
+async function stopActionClient(params: {
+  client: import("../sdk.js").MatrixClient;
+  stopOnDone: boolean;
+}): Promise<void> {
+  if (!params.stopOnDone) {
+    return;
+  }
+  await params.client.stopAndPersist();
+}
+
 function resolveVerificationId(input: string): string {
   const normalized = input.trim();
   if (!normalized) {
@@ -26,9 +36,7 @@ export async function listMatrixVerifications(opts: MatrixActionClientOpts = {})
     const crypto = requireCrypto(client);
     return await crypto.listVerifications();
   } finally {
-    if (stopOnDone) {
-      client.stop();
-    }
+    await stopActionClient({ client, stopOnDone });
   }
 }
 
@@ -51,9 +59,7 @@ export async function requestMatrixVerification(
       roomId: params.roomId?.trim() || undefined,
     });
   } finally {
-    if (stopOnDone) {
-      client.stop();
-    }
+    await stopActionClient({ client, stopOnDone });
   }
 }
 
@@ -66,9 +72,7 @@ export async function acceptMatrixVerification(
     const crypto = requireCrypto(client);
     return await crypto.acceptVerification(resolveVerificationId(requestId));
   } finally {
-    if (stopOnDone) {
-      client.stop();
-    }
+    await stopActionClient({ client, stopOnDone });
   }
 }
 
@@ -84,9 +88,7 @@ export async function cancelMatrixVerification(
       code: opts.code?.trim() || undefined,
     });
   } finally {
-    if (stopOnDone) {
-      client.stop();
-    }
+    await stopActionClient({ client, stopOnDone });
   }
 }
 
@@ -99,9 +101,7 @@ export async function startMatrixVerification(
     const crypto = requireCrypto(client);
     return await crypto.startVerification(resolveVerificationId(requestId), opts.method ?? "sas");
   } finally {
-    if (stopOnDone) {
-      client.stop();
-    }
+    await stopActionClient({ client, stopOnDone });
   }
 }
 
@@ -114,9 +114,7 @@ export async function generateMatrixVerificationQr(
     const crypto = requireCrypto(client);
     return await crypto.generateVerificationQr(resolveVerificationId(requestId));
   } finally {
-    if (stopOnDone) {
-      client.stop();
-    }
+    await stopActionClient({ client, stopOnDone });
   }
 }
 
@@ -134,9 +132,7 @@ export async function scanMatrixVerificationQr(
     }
     return await crypto.scanVerificationQr(resolveVerificationId(requestId), payload);
   } finally {
-    if (stopOnDone) {
-      client.stop();
-    }
+    await stopActionClient({ client, stopOnDone });
   }
 }
 
@@ -149,9 +145,7 @@ export async function getMatrixVerificationSas(
     const crypto = requireCrypto(client);
     return await crypto.getVerificationSas(resolveVerificationId(requestId));
   } finally {
-    if (stopOnDone) {
-      client.stop();
-    }
+    await stopActionClient({ client, stopOnDone });
   }
 }
 
@@ -164,9 +158,7 @@ export async function confirmMatrixVerificationSas(
     const crypto = requireCrypto(client);
     return await crypto.confirmVerificationSas(resolveVerificationId(requestId));
   } finally {
-    if (stopOnDone) {
-      client.stop();
-    }
+    await stopActionClient({ client, stopOnDone });
   }
 }
 
@@ -179,9 +171,7 @@ export async function mismatchMatrixVerificationSas(
     const crypto = requireCrypto(client);
     return await crypto.mismatchVerificationSas(resolveVerificationId(requestId));
   } finally {
-    if (stopOnDone) {
-      client.stop();
-    }
+    await stopActionClient({ client, stopOnDone });
   }
 }
 
@@ -194,9 +184,7 @@ export async function confirmMatrixVerificationReciprocateQr(
     const crypto = requireCrypto(client);
     return await crypto.confirmVerificationReciprocateQr(resolveVerificationId(requestId));
   } finally {
-    if (stopOnDone) {
-      client.stop();
-    }
+    await stopActionClient({ client, stopOnDone });
   }
 }
 
@@ -215,9 +203,7 @@ export async function getMatrixEncryptionStatus(
       pendingVerifications: (await crypto.listVerifications()).length,
     };
   } finally {
-    if (stopOnDone) {
-      client.stop();
-    }
+    await stopActionClient({ client, stopOnDone });
   }
 }
 
@@ -240,9 +226,7 @@ export async function getMatrixVerificationStatus(
       recoveryKey: recoveryKey?.encodedPrivateKey ?? null,
     };
   } finally {
-    if (stopOnDone) {
-      client.stop();
-    }
+    await stopActionClient({ client, stopOnDone });
   }
 }
 
@@ -251,9 +235,7 @@ export async function getMatrixRoomKeyBackupStatus(opts: MatrixActionClientOpts 
   try {
     return await client.getRoomKeyBackupStatus();
   } finally {
-    if (stopOnDone) {
-      client.stop();
-    }
+    await stopActionClient({ client, stopOnDone });
   }
 }
 
@@ -265,9 +247,7 @@ export async function verifyMatrixRecoveryKey(
   try {
     return await client.verifyWithRecoveryKey(recoveryKey);
   } finally {
-    if (stopOnDone) {
-      client.stop();
-    }
+    await stopActionClient({ client, stopOnDone });
   }
 }
 
@@ -282,9 +262,7 @@ export async function restoreMatrixRoomKeyBackup(
       recoveryKey: opts.recoveryKey?.trim() || undefined,
     });
   } finally {
-    if (stopOnDone) {
-      client.stop();
-    }
+    await stopActionClient({ client, stopOnDone });
   }
 }
 
@@ -301,8 +279,6 @@ export async function bootstrapMatrixVerification(
       forceResetCrossSigning: opts.forceResetCrossSigning === true,
     });
   } finally {
-    if (stopOnDone) {
-      client.stop();
-    }
+    await stopActionClient({ client, stopOnDone });
   }
 }
