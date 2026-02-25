@@ -44,7 +44,7 @@ async function noteMatrixAuthHelp(prompter: WizardPrompter): Promise<void> {
       "Use an access token (recommended) or password login to an existing account.",
       "With access token: user ID is fetched automatically.",
       "Env vars supported: MATRIX_HOMESERVER, MATRIX_USER_ID, MATRIX_ACCESS_TOKEN, MATRIX_PASSWORD.",
-      `Docs: ${formatDocsLink("/channels/matrix", "channels/matrix")}`,
+      `Docs: ${formatDocsLink("/channels/matrix-js", "channels/matrix-js")}`,
     ].join("\n"),
     "Matrix setup",
   );
