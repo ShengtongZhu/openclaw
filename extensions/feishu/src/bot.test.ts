@@ -11,11 +11,14 @@ const {
   mockDownloadMessageResourceFeishu,
   mockCreateFeishuClient,
 } = vi.hoisted(() => ({
-  mockCreateFeishuReplyDispatcher: vi.fn(() => ({
-    dispatcher: vi.fn(),
-    replyOptions: {},
-    markDispatchIdle: vi.fn(),
-  })),
+  mockCreateFeishuReplyDispatcher: vi.fn(() => {
+    const markComplete = vi.fn();
+    return {
+      dispatcher: { markComplete },
+      replyOptions: {},
+      markDispatchIdle: vi.fn(),
+    };
+  }),
   mockSendMessageFeishu: vi.fn().mockResolvedValue({ messageId: "pairing-msg", chatId: "oc-dm" }),
   mockGetMessageFeishu: vi.fn().mockResolvedValue(null),
   mockDownloadMessageResourceFeishu: vi.fn().mockResolvedValue({
@@ -516,5 +519,78 @@ describe("handleFeishuMessage command authorization", () => {
         BodyForAgent: expect.stringContaining("ou-perm: hello group"),
       }),
     );
+  });
+
+  it("always marks dispatcher complete and dispatch idle after successful dispatch", async () => {
+    mockShouldComputeCommandAuthorized.mockReturnValue(false);
+    const cfg: ClawdbotConfig = {
+      channels: {
+        feishu: {
+          dmPolicy: "open",
+        },
+      },
+    } as ClawdbotConfig;
+    const event: FeishuMessageEvent = {
+      sender: {
+        sender_id: {
+          open_id: "ou-success",
+        },
+      },
+      message: {
+        message_id: "msg-success-cleanup",
+        chat_id: "oc-dm",
+        chat_type: "p2p",
+        message_type: "text",
+        content: JSON.stringify({ text: "hello" }),
+      },
+    };
+
+    await dispatchMessage({ cfg, event });
+
+    const dispatcherResult = mockCreateFeishuReplyDispatcher.mock.results.at(-1)?.value as
+      | {
+          dispatcher: { markComplete: ReturnType<typeof vi.fn> };
+          markDispatchIdle: ReturnType<typeof vi.fn>;
+        }
+      | undefined;
+    expect(dispatcherResult?.dispatcher.markComplete).toHaveBeenCalledTimes(1);
+    expect(dispatcherResult?.markDispatchIdle).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks dispatcher complete and dispatch idle when dispatch throws", async () => {
+    mockShouldComputeCommandAuthorized.mockReturnValue(false);
+    mockDispatchReplyFromConfig.mockRejectedValueOnce(new Error("dispatch boom"));
+    const cfg: ClawdbotConfig = {
+      channels: {
+        feishu: {
+          dmPolicy: "open",
+        },
+      },
+    } as ClawdbotConfig;
+    const event: FeishuMessageEvent = {
+      sender: {
+        sender_id: {
+          open_id: "ou-fail",
+        },
+      },
+      message: {
+        message_id: "msg-error-cleanup",
+        chat_id: "oc-dm",
+        chat_type: "p2p",
+        message_type: "text",
+        content: JSON.stringify({ text: "hello" }),
+      },
+    };
+
+    await dispatchMessage({ cfg, event });
+
+    const dispatcherResult = mockCreateFeishuReplyDispatcher.mock.results.at(-1)?.value as
+      | {
+          dispatcher: { markComplete: ReturnType<typeof vi.fn> };
+          markDispatchIdle: ReturnType<typeof vi.fn>;
+        }
+      | undefined;
+    expect(dispatcherResult?.dispatcher.markComplete).toHaveBeenCalledTimes(1);
+    expect(dispatcherResult?.markDispatchIdle).toHaveBeenCalledTimes(1);
   });
 });
