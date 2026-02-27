@@ -905,7 +905,9 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
                     ),
                   );
                 case "write_table_cells":
-                  return json(await writeTableCells(client, p.doc_token, p.table_block_id, p.values));
+                  return json(
+                    await writeTableCells(client, p.doc_token, p.table_block_id, p.values),
+                  );
                 case "create_table_with_values":
                   return json(
                     await createTableWithValues(
