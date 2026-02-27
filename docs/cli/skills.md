@@ -18,6 +18,16 @@ Related:
 
 ## Commands
 
+Quick command list:
+
+```bash
+openclaw skills list
+openclaw skills list --eligible
+openclaw skills info <name>
+openclaw skills check
+openclaw skills check --json
+```
+
 ### `openclaw skills list`
 
 List all skills with status, capabilities, and source.
