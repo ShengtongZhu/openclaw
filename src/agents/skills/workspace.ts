@@ -8,8 +8,15 @@ import {
 } from "@mariozechner/pi-coding-agent";
 import type { OpenClawConfig } from "../../config/config.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
+import { DANGEROUS_ACP_TOOLS, CAPABILITY_TOOL_GROUP_MAP } from "../../security/dangerous-tools.js";
+import { scanSkillMarkdown } from "../../security/skill-scanner.js";
+import {
+  updateSkillSecurityContext,
+  type CommunitySkillInfo,
+} from "../../security/skill-security-context.js";
 import { CONFIG_DIR, resolveUserPath } from "../../utils.js";
 import { resolveSandboxPath } from "../sandbox-paths.js";
+import { TOOL_GROUPS } from "../tool-policy.js";
 import { resolveBundledSkillsDir } from "./bundled-dir.js";
 import { shouldIncludeSkill } from "./config.js";
 import { normalizeSkillFilter } from "./filter.js";
@@ -70,7 +77,18 @@ function filterSkillEntries(
   skillFilter?: string[],
   eligibility?: SkillEligibilityContext,
 ): SkillEntry[] {
-  let filtered = entries.filter((entry) => shouldIncludeSkill({ entry, config, eligibility }));
+  let filtered = entries.filter((entry) => {
+    // Block skills with critical scan findings (prompt injection etc.)
+    if (entry.scanResult?.severity === "critical") {
+      skillsLogger.warn(`Skill "${entry.skill.name}" excluded: critical security scan finding`, {
+        category: "security",
+        skill: entry.skill.name,
+        reason: "critical_scan_finding",
+      });
+      return false;
+    }
+    return shouldIncludeSkill({ entry, config, eligibility });
+  });
   // If skillFilter is provided, only include skills in the filter list.
   if (skillFilter !== undefined) {
     const normalized = normalizeSkillFilter(skillFilter) ?? [];
@@ -389,19 +407,66 @@ function loadSkillEntries(
 
   const skillEntries: SkillEntry[] = Array.from(merged.values()).map((skill) => {
     let frontmatter: ParsedSkillFrontmatter = {};
+    let raw = "";
     try {
-      const raw = fs.readFileSync(skill.filePath, "utf-8");
+      raw = fs.readFileSync(skill.filePath, "utf-8");
       frontmatter = parseFrontmatter(raw);
     } catch {
       // ignore malformed skills
     }
+    const metadata = resolveOpenClawMetadata(frontmatter);
+
+    // Scan SKILL.md content for prompt injection and suspicious patterns
+    let scanResult: SkillScanResult | undefined;
+    if (raw) {
+      const scan = scanSkillMarkdown(raw, skill.filePath, metadata?.capabilities);
+      if (scan.severity !== "clean") {
+        scanResult = {
+          severity: scan.severity,
+          findings: scan.findings.map((f) => ({
+            ruleId: f.ruleId,
+            severity: f.severity,
+            message: f.message,
+            line: f.line,
+          })),
+        };
+        if (scan.severity === "critical") {
+          skillsLogger.warn(`Skill "${skill.name}" blocked: critical scan finding`, {
+            category: "security",
+            skill: skill.name,
+            findings: scan.findings.map((f) => f.ruleId),
+          });
+        } else {
+          skillsLogger.debug(`Skill "${skill.name}" scan: ${scan.findings.length} finding(s)`, {
+            category: "security",
+            skill: skill.name,
+            severity: scan.severity,
+            findings: scan.findings.map((f) => f.ruleId),
+          });
+        }
+      }
+    }
+
     return {
       skill,
       frontmatter,
-      metadata: resolveOpenClawMetadata(frontmatter),
+      metadata,
       invocation: resolveSkillInvocationPolicy(frontmatter),
+      scanResult,
     };
   });
+
+  // Log a single summary for non-critical scan findings
+  const withFindings = skillEntries.filter(
+    (e) => e.scanResult && e.scanResult.severity !== "critical",
+  );
+  if (withFindings.length > 0) {
+    skillsLogger.debug(`Skill scan: ${withFindings.length} skill(s) with non-critical findings`, {
+      category: "security",
+      count: withFindings.length,
+    });
+  }
+
   return skillEntries;
 }
 
@@ -445,9 +510,57 @@ function applySkillsPromptLimits(params: { skills: Skill[]; config?: OpenClawCon
 
 export function buildWorkspaceSkillSnapshot(
   workspaceDir: string,
-  opts?: WorkspaceSkillBuildOptions & { snapshotVersion?: number },
+  opts?: {
+    config?: OpenClawConfig;
+    managedSkillsDir?: string;
+    bundledSkillsDir?: string;
+    entries?: SkillEntry[];
+    /** If provided, only include skills with these names */
+    skillFilter?: string[];
+    eligibility?: SkillEligibilityContext;
+    snapshotVersion?: number;
+  },
 ): SkillSnapshot {
-  const { eligible, prompt, resolvedSkills } = resolveWorkspaceSkillPromptState(workspaceDir, opts);
+  const skillEntries = opts?.entries ?? loadSkillEntries(workspaceDir, opts);
+  const eligible = filterSkillEntries(
+    skillEntries,
+    opts?.config,
+    opts?.skillFilter,
+    opts?.eligibility,
+  );
+  const promptEntries = eligible.filter(
+    (entry) => entry.invocation?.disableModelInvocation !== true,
+  );
+  const resolvedSkills = promptEntries.map((entry) => entry.skill);
+  const remoteNote = opts?.eligibility?.remote?.note?.trim();
+  const { skillsForPrompt, truncated } = applySkillsPromptLimits({
+    skills: resolvedSkills,
+    config: opts?.config,
+  });
+
+  const truncationNote = truncated
+    ? `⚠️ Skills truncated: included ${skillsForPrompt.length} of ${resolvedSkills.length}. Run \`openclaw skills check\` to audit.`
+    : "";
+
+  const prompt = [
+    remoteNote,
+    truncationNote,
+    formatSkillsForPrompt(compactSkillPaths(skillsForPrompt)),
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  // Update the global skill security context so the before-tool-call hook
+  // can enforce capability-based restrictions.
+  const communitySkills: CommunitySkillInfo[] = eligible
+    .filter((entry) => entry.skill.source === "openclaw-managed")
+    .map((entry) => ({
+      name: entry.skill.name,
+      capabilities: entry.metadata?.capabilities ?? [],
+      scanSeverity: entry.scanResult?.severity ?? "clean",
+    }));
+  updateSkillSecurityContext(communitySkills);
+
   const skillFilter = normalizeSkillFilter(opts?.skillFilter);
   return {
     prompt,
@@ -464,29 +577,16 @@ export function buildWorkspaceSkillSnapshot(
 
 export function buildWorkspaceSkillsPrompt(
   workspaceDir: string,
-  opts?: WorkspaceSkillBuildOptions,
+  opts?: {
+    config?: OpenClawConfig;
+    managedSkillsDir?: string;
+    bundledSkillsDir?: string;
+    entries?: SkillEntry[];
+    /** If provided, only include skills with these names */
+    skillFilter?: string[];
+    eligibility?: SkillEligibilityContext;
+  },
 ): string {
-  return resolveWorkspaceSkillPromptState(workspaceDir, opts).prompt;
-}
-
-type WorkspaceSkillBuildOptions = {
-  config?: OpenClawConfig;
-  managedSkillsDir?: string;
-  bundledSkillsDir?: string;
-  entries?: SkillEntry[];
-  /** If provided, only include skills with these names */
-  skillFilter?: string[];
-  eligibility?: SkillEligibilityContext;
-};
-
-function resolveWorkspaceSkillPromptState(
-  workspaceDir: string,
-  opts?: WorkspaceSkillBuildOptions,
-): {
-  eligible: SkillEntry[];
-  prompt: string;
-  resolvedSkills: Skill[];
-} {
   const skillEntries = opts?.entries ?? loadSkillEntries(workspaceDir, opts);
   const eligible = filterSkillEntries(
     skillEntries,
@@ -506,14 +606,9 @@ function resolveWorkspaceSkillPromptState(
   const truncationNote = truncated
     ? `⚠️ Skills truncated: included ${skillsForPrompt.length} of ${resolvedSkills.length}. Run \`openclaw skills check\` to audit.`
     : "";
-  const prompt = [
-    remoteNote,
-    truncationNote,
-    formatSkillsForPrompt(compactSkillPaths(skillsForPrompt)),
-  ]
+  return [remoteNote, truncationNote, formatSkillsForPrompt(compactSkillPaths(skillsForPrompt))]
     .filter(Boolean)
     .join("\n");
-  return { eligible, prompt, resolvedSkills };
 }
 
 export function resolveSkillsPromptForRun(params: {
@@ -728,6 +823,31 @@ export function buildWorkspaceSkillCommandSpecs(
           { skillName: rawName, command: unique },
         );
         return undefined;
+      }
+
+      // Phase 7: Block community skills from dispatching to dangerous tools
+      // they haven't declared capabilities for.
+      if (entry.skill.source === "openclaw-managed" && DANGEROUS_ACP_TOOLS.has(toolName)) {
+        const declaredCaps = entry.metadata?.capabilities ?? [];
+        const toolGroupMap = CAPABILITY_TOOL_GROUP_MAP;
+        const hasCoverage = declaredCaps.some((cap) => {
+          const groupName = toolGroupMap[cap];
+          if (!groupName) return false;
+          const groupTools = TOOL_GROUPS[groupName];
+          return groupTools?.includes(toolName) ?? false;
+        });
+        if (!hasCoverage) {
+          skillsLogger.warn(
+            `Skill "${rawName}" dispatch to "${toolName}" blocked: undeclared capability`,
+            {
+              category: "security",
+              skillName: rawName,
+              targetTool: toolName,
+              declaredCapabilities: declaredCaps,
+            },
+          );
+          return undefined;
+        }
       }
 
       const argModeRaw = (
