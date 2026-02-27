@@ -2,7 +2,6 @@ import type { ToolLoopDetectionConfig } from "../config/types.tools.js";
 import type { SessionState } from "../logging/diagnostic-session-state.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
-import { checkToolAgainstSkillPolicy } from "../security/skill-security-context.js";
 import { isPlainObject } from "../utils.js";
 import { normalizeToolName } from "./tool-policy.js";
 import type { AnyAgentTool } from "./tools/common.js";
@@ -80,20 +79,6 @@ export async function runBeforeToolCallHook(args: {
 }): Promise<HookOutcome> {
   const toolName = normalizeToolName(args.toolName || "tool");
   const params = args.params;
-
-  // Skill security enforcement — check before any plugin hooks.
-  // This is a hard code gate: no prompt injection can bypass it.
-  const skillPolicyBlock = checkToolAgainstSkillPolicy(toolName);
-  if (skillPolicyBlock) {
-    log.warn(`Tool blocked by skill policy: ${toolName}`, {
-      category: "security",
-      tool: toolName,
-      reason: skillPolicyBlock,
-      agentId: args.ctx?.agentId ?? null,
-      sessionKey: args.ctx?.sessionKey ?? null,
-    });
-    return { blocked: true, reason: skillPolicyBlock };
-  }
 
   if (args.ctx?.sessionKey) {
     const { getDiagnosticSessionState } = await import("../logging/diagnostic-session-state.js");
