@@ -219,6 +219,7 @@ This example uses a small wrapper script that implements the exec provider proto
 
 - Script: `scripts/secrets/openclaw-bws-resolver`
 - `bws` must be installed and authenticated via `BWS_ACCESS_TOKEN`
+- `bws` is resolved from `PATH` by default (set `BWS_BIN` for an absolute override)
 
 ```json5
 {
@@ -229,7 +230,7 @@ This example uses a small wrapper script that implements the exec provider proto
         // Point this at wherever you install the resolver.
         command: "/usr/local/bin/openclaw-bws-resolver",
         args: [],
-        passEnv: ["BWS_ACCESS_TOKEN", "PATH"],
+        passEnv: ["BWS_ACCESS_TOKEN", "PATH", "BWS_BIN"],
         jsonOnly: true,
       },
     },
