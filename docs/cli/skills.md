@@ -40,6 +40,8 @@ Capability icons displayed next to skill names:
 | `🌐` | `network` — outbound HTTP                |
 | `🔍` | `browser` — browser automation           |
 | `⚡` | `sessions` — cross-session orchestration |
+| `✉️` | `messaging` — send channel messages      |
+| `⏰` | `scheduling` — recurring jobs            |
 
 Skills blocked by security scanning show `x blocked` instead of `x missing`.
 
