@@ -47,7 +47,27 @@ metadata: { "openclaw": { "capabilities": ["shell", "filesystem"] } }
 ---
 ```
 
-Available capabilities: `shell`, `filesystem`, `network`, `browser`, `sessions`.
+Available capabilities: `shell`, `filesystem`, `network`, `browser`, `sessions`, `messaging`, `scheduling`.
+
+You can use either a flat list or a 2-layer object shape under the same key:
+
+```markdown
+---
+name: deploy_helper
+description: Automate deployment workflows.
+metadata:
+  {
+    "openclaw":
+      {
+        "capabilities":
+          {
+            "shell": { "mode": "restricted", "allow": ["git", "gh"] },
+            "network": { "web_search": true, "web_fetch": true },
+          },
+      },
+  }
+---
+```
 
 Skills without capabilities are treated as read-only (model-only instructions). Community skills published to ClawHub **must** declare capabilities matching their tool usage — undeclared capabilities are blocked at runtime.
 
