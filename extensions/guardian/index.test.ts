@@ -528,7 +528,7 @@ describe("guardian index — lazy provider + auth resolution via SDK", () => {
         mode: "api-key",
       });
 
-    const api: OpenClawPluginApi = {
+    const api = {
       id: "guardian",
       name: "Guardian",
       source: "test",
@@ -583,7 +583,7 @@ describe("guardian index — lazy provider + auth resolution via SDK", () => {
       registerCommand: vi.fn(),
       registerContextEngine: vi.fn(),
       resolvePath: vi.fn((s: string) => s),
-    };
+    } as unknown as OpenClawPluginApi;
 
     return { api, hooks, mockResolveAuth };
   }
