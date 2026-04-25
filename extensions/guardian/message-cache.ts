@@ -73,7 +73,9 @@ export function updateCache(
  */
 export function getRecentTurns(sessionKey: string): ConversationTurn[] {
   const entry = cache.get(sessionKey);
-  if (!entry) return [];
+  if (!entry) {
+    return [];
+  }
 
   if (Date.now() - entry.updatedAt > CACHE_TTL_MS) {
     cache.delete(sessionKey);
@@ -99,7 +101,9 @@ export function getRecentTurns(sessionKey: string): ConversationTurn[] {
  */
 export function getAllTurns(sessionKey: string): ConversationTurn[] {
   const entry = cache.get(sessionKey);
-  if (!entry) return [];
+  if (!entry) {
+    return [];
+  }
 
   if (Date.now() - entry.updatedAt > CACHE_TTL_MS) {
     return [];
@@ -122,8 +126,12 @@ export function getAllTurns(sessionKey: string): ConversationTurn[] {
  */
 export function getSummary(sessionKey: string): string | undefined {
   const entry = cache.get(sessionKey);
-  if (!entry) return undefined;
-  if (Date.now() - entry.updatedAt > CACHE_TTL_MS) return undefined;
+  if (!entry) {
+    return undefined;
+  }
+  if (Date.now() - entry.updatedAt > CACHE_TTL_MS) {
+    return undefined;
+  }
   return entry.summary;
 }
 
@@ -132,7 +140,9 @@ export function getSummary(sessionKey: string): string | undefined {
  */
 export function updateSummary(sessionKey: string, summary: string): void {
   const entry = cache.get(sessionKey);
-  if (!entry) return;
+  if (!entry) {
+    return;
+  }
   entry.summary = summary;
   entry.summaryUpdateInProgress = false;
   entry.updatedAt = Date.now();
@@ -143,7 +153,9 @@ export function updateSummary(sessionKey: string, summary: string): void {
  */
 export function markSummaryInProgress(sessionKey: string): void {
   const entry = cache.get(sessionKey);
-  if (entry) entry.summaryUpdateInProgress = true;
+  if (entry) {
+    entry.summaryUpdateInProgress = true;
+  }
 }
 
 /**
@@ -153,7 +165,9 @@ export function markSummaryInProgress(sessionKey: string): void {
  */
 export function markSummaryComplete(sessionKey: string): void {
   const entry = cache.get(sessionKey);
-  if (entry) entry.summaryUpdateInProgress = false;
+  if (entry) {
+    entry.summaryUpdateInProgress = false;
+  }
 }
 
 /**
@@ -185,7 +199,9 @@ export function getLastSummarizedTurnCount(sessionKey: string): number {
  */
 export function setLastSummarizedTurnCount(sessionKey: string, count: number): void {
   const entry = cache.get(sessionKey);
-  if (entry) entry.lastSummarizedTurnCount = count;
+  if (entry) {
+    entry.lastSummarizedTurnCount = count;
+  }
 }
 
 /**
@@ -210,7 +226,9 @@ export function getAgentSystemPrompt(sessionKey: string): string | undefined {
  */
 export function setAgentSystemPrompt(sessionKey: string, systemPrompt: string): void {
   const entry = cache.get(sessionKey);
-  if (!entry) return;
+  if (!entry) {
+    return;
+  }
   if (!entry.agentSystemPrompt) {
     entry.agentSystemPrompt = systemPrompt;
   }
@@ -246,18 +264,32 @@ export function cacheSize(): number {
  * These are trusted system events, not user conversations.
  */
 function isSystemTriggerPrompt(prompt: string | undefined): boolean {
-  if (!prompt) return false;
+  if (!prompt) {
+    return false;
+  }
   const text = prompt.trim().toLowerCase();
-  if (!text) return false;
+  if (!text) {
+    return false;
+  }
   // Heartbeat patterns — direct "heartbeat" prefix
-  if (/^heartbeat/i.test(text)) return true;
+  if (/^heartbeat/i.test(text)) {
+    return true;
+  }
   // Heartbeat patterns — the default heartbeat prompt contains HEARTBEAT_OK or HEARTBEAT.md
-  if (/heartbeat_ok/i.test(text) || /heartbeat\.md/i.test(text)) return true;
+  if (/heartbeat_ok/i.test(text) || /heartbeat\.md/i.test(text)) {
+    return true;
+  }
   // Cron/scheduled patterns (OpenClaw cron triggers start with /cron or contain cron metadata)
-  if (/^\/cron\b/i.test(text)) return true;
-  if (/^\[cron\]/i.test(text)) return true;
+  if (/^\/cron\b/i.test(text)) {
+    return true;
+  }
+  if (/^\[cron\]/i.test(text)) {
+    return true;
+  }
   // Status/health check patterns
-  if (/^(ping|pong|health[_\s]?check|status[_\s]?check)$/i.test(text)) return true;
+  if (/^(ping|pong|health[_\s]?check|status[_\s]?check)$/i.test(text)) {
+    return true;
+  }
   return false;
 }
 
@@ -269,11 +301,19 @@ function isSystemTriggerPrompt(prompt: string | undefined): boolean {
 function filterSystemTurns(turns: ConversationTurn[]): ConversationTurn[] {
   return turns.filter((turn) => {
     const text = turn.user.trim().toLowerCase();
-    if (text.length < 3) return false;
-    if (/^(heartbeat|ping|pong|health|status|ok|ack)$/i.test(text)) return false;
-    if (/^heartbeat[_\s]?(ok|check|ping|test)?$/i.test(text)) return false;
+    if (text.length < 3) {
+      return false;
+    }
+    if (/^(heartbeat|ping|pong|health|status|ok|ack)$/i.test(text)) {
+      return false;
+    }
+    if (/^heartbeat[_\s]?(ok|check|ping|test)?$/i.test(text)) {
+      return false;
+    }
     // Heartbeat prompts that mention HEARTBEAT_OK or HEARTBEAT.md
-    if (/heartbeat_ok/i.test(text) || /heartbeat\.md/i.test(text)) return false;
+    if (/heartbeat_ok/i.test(text) || /heartbeat\.md/i.test(text)) {
+      return false;
+    }
     return true;
   });
 }
@@ -295,7 +335,9 @@ function countUserMessages(historyMessages: unknown[]): number {
   for (const msg of historyMessages) {
     if (isMessageLike(msg) && msg.role === "user") {
       const text = extractTextContent(msg.content);
-      if (text && !text.startsWith("/")) count++;
+      if (text && !text.startsWith("/")) {
+        count++;
+      }
     }
   }
   return count;
@@ -343,7 +385,9 @@ export function extractConversationTurns(
   const assistantParts: string[] = [];
 
   for (const msg of historyMessages) {
-    if (!isMessageLike(msg)) continue;
+    if (!isMessageLike(msg)) {
+      continue;
+    }
 
     if (msg.role === "assistant") {
       const text = extractAssistantText(msg.content);
@@ -445,7 +489,9 @@ function extractToolResultText(msg: { role: string; content: unknown }): string 
     text = parts.join("\n").trim();
   }
 
-  if (!text) return undefined;
+  if (!text) {
+    return undefined;
+  }
   return `[tool: ${toolName}] ${text}`;
 }
 
@@ -469,7 +515,9 @@ function extractTextContent(content: unknown): string | undefined {
         const text = stripChannelMetadata(
           ((block as Record<string, unknown>).text as string).trim(),
         );
-        if (text) return text;
+        if (text) {
+          return text;
+        }
       }
     }
   }
@@ -481,9 +529,13 @@ function extractTextContent(content: unknown): string | undefined {
  * Merge multiple assistant text parts into a single string.
  */
 function mergeAssistantParts(parts: string[]): string | undefined {
-  if (parts.length === 0) return undefined;
+  if (parts.length === 0) {
+    return undefined;
+  }
   const merged = parts.join("\n").trim();
-  if (!merged) return undefined;
+  if (!merged) {
+    return undefined;
+  }
   return merged;
 }
 

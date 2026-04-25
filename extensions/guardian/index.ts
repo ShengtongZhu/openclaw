@@ -7,7 +7,6 @@ import {
   getLastSummarizedTurnCount,
   getRecentTurns,
   getSummary,
-  getTotalTurns,
   hasSession,
   isSystemTrigger as isSystemTriggerForSession,
   isSummaryInProgress,
@@ -99,7 +98,9 @@ const guardianPlugin = {
     let resolutionAttempted = false;
 
     async function ensureProviderResolved(): Promise<boolean> {
-      if (resolutionAttempted) return !!resolvedModel.baseUrl;
+      if (resolutionAttempted) {
+        return !!resolvedModel.baseUrl;
+      }
       resolutionAttempted = true;
 
       // --- Resolve provider info (baseUrl, api type) from config ---
@@ -150,7 +151,9 @@ const guardianPlugin = {
     // -----------------------------------------------------------------
     api.on("llm_input", (event, ctx) => {
       const sessionKey = ctx.sessionKey;
-      if (!sessionKey) return;
+      if (!sessionKey) {
+        return;
+      }
 
       // Store live reference (lazy extraction happens at before_tool_call time)
       const totalTurns = updateCache(
@@ -301,7 +304,9 @@ function extractStringHeaders(
   const merged: Record<string, string> = {};
   let hasAny = false;
   for (const src of sources) {
-    if (!src) continue;
+    if (!src) {
+      continue;
+    }
     for (const [key, value] of Object.entries(src)) {
       if (typeof value === "string") {
         merged[key] = value;
@@ -377,7 +382,9 @@ const MAX_DECISION_CACHE_SIZE = 256;
 
 function getCachedDecision(key: string): CachedDecision | undefined {
   const entry = decisionCache.get(key);
-  if (!entry) return undefined;
+  if (!entry) {
+    return undefined;
+  }
   if (Date.now() - entry.cachedAt > DECISION_CACHE_TTL_MS) {
     decisionCache.delete(key);
     return undefined;

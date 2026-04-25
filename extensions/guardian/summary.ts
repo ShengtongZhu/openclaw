@@ -52,12 +52,20 @@ function filterMeaningfulTurns(turns: ConversationTurn[]): ConversationTurn[] {
   return turns.filter((turn) => {
     const text = turn.user.trim().toLowerCase();
     // Skip very short messages that are likely system pings
-    if (text.length < 3) return false;
+    if (text.length < 3) {
+      return false;
+    }
     // Skip known system/heartbeat patterns
-    if (/^(heartbeat|ping|pong|health|status|ok|ack)$/i.test(text)) return false;
-    if (/^heartbeat[_\s]?(ok|check|ping|test)?$/i.test(text)) return false;
+    if (/^(heartbeat|ping|pong|health|status|ok|ack)$/i.test(text)) {
+      return false;
+    }
+    if (/^heartbeat[_\s]?(ok|check|ping|test)?$/i.test(text)) {
+      return false;
+    }
     // Skip the real heartbeat prompt (starts with "Read HEARTBEAT.md..." or mentions HEARTBEAT_OK)
-    if (/heartbeat_ok/i.test(text) || /heartbeat\.md/i.test(text)) return false;
+    if (/heartbeat_ok/i.test(text) || /heartbeat\.md/i.test(text)) {
+      return false;
+    }
     return true;
   });
 }
@@ -93,11 +101,17 @@ export function shouldUpdateSummary(
   updateInProgress: boolean,
   lastSummarizedTurnCount: number,
 ): boolean {
-  if (updateInProgress) return false;
+  if (updateInProgress) {
+    return false;
+  }
   // Only summarize when there are turns beyond the recent window
-  if (totalTurns <= maxRecentTurns) return false;
+  if (totalTurns <= maxRecentTurns) {
+    return false;
+  }
   // Only re-summarize when new turns have arrived since last summary
-  if (totalTurns <= lastSummarizedTurnCount) return false;
+  if (totalTurns <= lastSummarizedTurnCount) {
+    return false;
+  }
   return true;
 }
 
@@ -123,11 +137,15 @@ export type GenerateSummaryParams = {
 export async function generateSummary(params: GenerateSummaryParams): Promise<string | undefined> {
   const { model, existingSummary, turns, timeoutMs, logger } = params;
 
-  if (turns.length === 0) return existingSummary;
+  if (turns.length === 0) {
+    return existingSummary;
+  }
 
   // Skip if all turns are trivial/system messages
   const meaningful = filterMeaningfulTurns(turns);
-  if (meaningful.length === 0) return existingSummary;
+  if (meaningful.length === 0) {
+    return existingSummary;
+  }
 
   const userPrompt = existingSummary
     ? buildUpdateSummaryPrompt(existingSummary, turns)

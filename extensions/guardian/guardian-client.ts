@@ -141,8 +141,9 @@ export async function callGuardian(params: GuardianCallParams): Promise<Guardian
     const elapsed = Date.now() - startTime;
     if (logger) {
       logger.info(
-        `[guardian] ◀ Guardian responded in ${elapsed}ms: action=${result.action.toUpperCase()}` +
-          `${result.reason ? `, reason="${result.reason}"` : ""}`,
+        `[guardian] ◀ Guardian responded in ${elapsed}ms: action=${result.action.toUpperCase()}${
+          result.reason ? `, reason="${result.reason}"` : ""
+        }`,
       );
     }
 
@@ -249,7 +250,9 @@ function parseGuardianResponse(content: string, fallback: GuardianDecision): Gua
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
-    if (!line) continue;
+    if (!line) {
+      continue;
+    }
     const upper = line.toUpperCase();
 
     // Require a delimiter after ALLOW/BLOCK to avoid matching words like

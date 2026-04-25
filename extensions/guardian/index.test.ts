@@ -13,7 +13,7 @@ vi.mock("./summary.js", () => ({
 }));
 
 import type { OpenClawPluginApi, PluginRuntime } from "openclaw/plugin-sdk/core";
-import { callGuardian, callForText } from "./guardian-client.js";
+import { callGuardian } from "./guardian-client.js";
 import guardianPlugin, { __testing } from "./index.js";
 import {
   clearCache,
@@ -569,7 +569,9 @@ describe("guardian index — lazy provider + auth resolution via SDK", () => {
 
       // Capture hook registrations
       on: vi.fn((hookName, handler) => {
-        if (!hooks[hookName]) hooks[hookName] = [];
+        if (!hooks[hookName]) {
+          hooks[hookName] = [];
+        }
         hooks[hookName].push(handler);
       }),
       registerTool: vi.fn(),
@@ -613,12 +615,12 @@ describe("guardian index — lazy provider + auth resolution via SDK", () => {
     guardianPlugin.register(api);
 
     expect(hooks["before_tool_call"]).toBeDefined();
-    expect(hooks["before_tool_call"]!.length).toBe(1);
+    expect(hooks["before_tool_call"].length).toBe(1);
 
     updateCache("s1", [{ role: "user", content: "test message" }], undefined, 3, NO_FILTER);
     vi.mocked(callGuardian).mockResolvedValue({ action: "allow" });
 
-    const handler = hooks["before_tool_call"]![0];
+    const handler = hooks["before_tool_call"][0];
     await handler(
       { toolName: "exec", params: { command: "ls" } },
       { sessionKey: "s1", toolName: "exec" },
@@ -667,7 +669,7 @@ describe("guardian index — lazy provider + auth resolution via SDK", () => {
     updateCache("s1", [{ role: "user", content: "test" }], undefined, 3, NO_FILTER);
     vi.mocked(callGuardian).mockResolvedValue({ action: "allow" });
 
-    const handler = hooks["before_tool_call"]![0];
+    const handler = hooks["before_tool_call"][0];
     await handler(
       { toolName: "exec", params: { command: "ls" } },
       { sessionKey: "s1", toolName: "exec" },
@@ -702,7 +704,7 @@ describe("guardian index — lazy provider + auth resolution via SDK", () => {
     updateCache("s1", [{ role: "user", content: "test" }], undefined, 3, NO_FILTER);
     vi.mocked(callGuardian).mockResolvedValue({ action: "allow" });
 
-    const handler = hooks["before_tool_call"]![0];
+    const handler = hooks["before_tool_call"][0];
 
     await handler({ toolName: "exec", params: {} }, { sessionKey: "s1", toolName: "exec" });
     decisionCache.clear();
@@ -727,7 +729,7 @@ describe("guardian index — lazy provider + auth resolution via SDK", () => {
 
     updateCache("s1", [{ role: "user", content: "test" }], undefined, 3, NO_FILTER);
 
-    const handler = hooks["before_tool_call"]![0];
+    const handler = hooks["before_tool_call"][0];
     const result = await handler(
       { toolName: "exec", params: { command: "ls" } },
       { sessionKey: "s1", toolName: "exec" },
@@ -757,7 +759,7 @@ describe("guardian index — lazy provider + auth resolution via SDK", () => {
       reason: "Guardian unavailable (fallback: allow)",
     });
 
-    const handler = hooks["before_tool_call"]![0];
+    const handler = hooks["before_tool_call"][0];
     await handler(
       { toolName: "exec", params: { command: "ls" } },
       { sessionKey: "s1", toolName: "exec" },

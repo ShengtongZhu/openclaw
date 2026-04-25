@@ -133,7 +133,9 @@ export const GUARDIAN_DEFAULTS = {
  * Applies defaults for any missing fields.
  */
 export function resolveConfig(raw: Record<string, unknown> | undefined): GuardianConfig {
-  if (!raw) raw = {};
+  if (!raw) {
+    raw = {};
+  }
 
   return {
     model: typeof raw.model === "string" && raw.model.trim() ? raw.model.trim() : undefined,
@@ -171,10 +173,14 @@ export function resolveConfig(raw: Record<string, unknown> | undefined): Guardia
  */
 export function parseModelRef(modelRef: string): { provider: string; modelId: string } | undefined {
   const slashIndex = modelRef.indexOf("/");
-  if (slashIndex <= 0 || slashIndex >= modelRef.length - 1) return undefined;
+  if (slashIndex <= 0 || slashIndex >= modelRef.length - 1) {
+    return undefined;
+  }
   const provider = modelRef.slice(0, slashIndex).trim();
   const modelId = modelRef.slice(slashIndex + 1).trim();
-  if (!provider || !modelId) return undefined;
+  if (!provider || !modelId) {
+    return undefined;
+  }
   return { provider, modelId };
 }
 
@@ -187,12 +193,18 @@ export function resolveGuardianModelRef(
   openclawConfig?: OpenClawConfig,
 ): string | undefined {
   // 1. Explicit guardian model in plugin config
-  if (config.model) return config.model;
+  if (config.model) {
+    return config.model;
+  }
 
   // 2. Fall back to the main agent model
   const mainModel = openclawConfig?.agents?.defaults?.model;
-  if (typeof mainModel === "string") return mainModel;
-  if (typeof mainModel === "object" && mainModel?.primary) return mainModel.primary;
+  if (typeof mainModel === "string") {
+    return mainModel;
+  }
+  if (typeof mainModel === "object" && mainModel?.primary) {
+    return mainModel.primary;
+  }
 
   return undefined;
 }
